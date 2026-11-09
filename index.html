@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Transcritor de Áudios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: coluna única estreita, como uma folha de petição — chave no topo, área de envio, depois os autos (resultados). */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --fg: #16202b;
+  --muted: #5b6876;
+  --line: #d9dfe5;
+  --accent: #1f4e79;
+  --accent-soft: #e4edf6;
+  --ok: #1d7a4c;
+  --ok-soft: #e2f3ea;
+  --warn: #9a5b00;
+  --err: #b42318;
+  --err-soft: #fdecea;
+  --font-display: "Literata", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f151c; --surface: #17202a; --fg: #e6ebf0; --muted: #98a4b1; --line: #2a3542;
+    --accent: #7fb0e0; --accent-soft: #1c2e42; --ok: #5cc493; --ok-soft: #15301f;
+    --warn: #e2a64a; --err: #f08b80; --err-soft: #3a1c1a; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.55 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 28px; }
+header h1 {
+  font-family: var(--font-display); font-weight: 600; font-size: 2rem; line-height: 1.15;
+  margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em;
+}
+header p { margin: 0; color: var(--muted); max-width: 60ch; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+.label {
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 0 0 10px;
+}
+.key-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.key-row input {
+  flex: 1 1 260px; min-width: 0; font: 14px var(--font-mono); padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg);
+}
+button {
+  font: 500 14px var(--font-body); padding: 10px 16px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.key-status { margin: 10px 0 0; font-size: 0.875rem; color: var(--muted); }
+.key-status.ok { color: var(--ok); }
+details { margin-top: 12px; font-size: 0.9rem; color: var(--muted); }
+details summary { cursor: pointer; color: var(--accent); }
+details ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+a { color: var(--accent); }
+
+.drop {
+  border: 2px dashed var(--line); border-radius: 10px; padding: 36px 20px; text-align: center;
+  background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { display: block; font-family: var(--font-display); font-size: 1.25rem; font-weight: 500; margin-bottom: 4px; }
+.drop span { color: var(--muted); font-size: 0.9rem; }
+.drop input { display: none; }
+
+.results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.results-head h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; margin: 0; }
+.results-head .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.list { display: grid; gap: 14px; }
+.empty { color: var(--muted); font-size: 0.95rem; padding: 8px 0; }
+
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.item-head {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.item-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.item-meta { font: 12px var(--font-mono); color: var(--muted); }
+.chip { font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.fila { background: var(--bg); color: var(--muted); }
+.chip.transcrevendo { background: var(--accent-soft); color: var(--accent); }
+.chip.pronto { background: var(--ok-soft); color: var(--ok); }
+.chip.erro { background: var(--err-soft); color: var(--err); }
+.item-body { padding: 14px 16px; display: grid; gap: 10px; }
+.item textarea {
+  width: 100%; min-height: 140px; resize: vertical; font: 15px/1.6 var(--font-body);
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: var(--bg); color: var(--fg);
+}
+.item .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.item .err { color: var(--err); margin: 0; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+footer { color: var(--muted); font-size: 0.8rem; max-width: 65ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Transcritor de Áudios</h1>
+    <p>Envie áudios do WhatsApp, gravações de reunião ou de audiência e receba o texto em português, pronto para copiar.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="key-label">
+    <p class="label" id="key-label">Chave de acesso (Groq)</p>
+    <div class="key-row">
+      <input id="api-key" type="password" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+      <button id="save-key">Salvar chave</button>
+    </div>
+    <p class="key-status" id="key-status">Nenhuma chave salva ainda.</p>
+    <details id="key-help">
+      <summary>Como conseguir a chave grátis (2 minutos)</summary>
+      <ol>
+        <li>Acesse <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> e entre com uma conta Google.</li>
+        <li>Clique em <b>Create API Key</b>, dê um nome qualquer e confirme.</li>
+        <li>Copie o código que começa com <code>gsk_</code>, cole aqui em cima e clique em <b>Salvar chave</b>.</li>
+      </ol>
+      <p>A chave fica salva só neste navegador. Não precisa de cartão de crédito.</p>
+    </details>
+  </section>
+
+  <label class="drop" id="drop" for="file-input">
+    <strong>Arraste os áudios aqui</strong>
+    <span>ou clique para escolher · .ogg, .opus, .mp3, .m4a, .wav, .mp4, .webm · até 25 MB cada</span>
+    <input id="file-input" type="file" accept="audio/*,video/mp4,video/webm,.ogg,.opus,.m4a" multiple>
+  </label>
+
+  <section aria-labelledby="results-title">
+    <div class="results-head">
+      <h2 id="results-title">Transcrições</h2>
+      <div class="actions">
+        <button id="copy-all" disabled>Copiar todas</button>
+        <button id="download-all" disabled>Baixar .txt</button>
+        <button id="clear" disabled>Limpar</button>
+      </div>
+    </div>
+    <div class="list" id="list" style="margin-top:14px">
+      <p class="empty" id="empty">Os textos aparecem aqui, um bloco por áudio, na ordem em que foram enviados.</p>
+    </div>
+  </section>
+
+  <footer>
+    Os áudios são enviados à Groq apenas para a transcrição (modelo Whisper). Antes de usar com material sigiloso de clientes, confira se o escritório está de acordo. O plano gratuito permite cerca de 8 horas de áudio por dia.
+  </footer>
+</div>
+
+<script>
+const STORE_KEY = 'groq_api_key';
+const ENDPOINT = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const MAX_BYTES = 25 * 1024 * 1024;
+
+const $ = (id) => document.getElementById(id);
+const keyInput = $('api-key'), keyStatus = $('key-status');
+const list = $('list'), empty = $('empty');
+const items = [];
+let running = false, nextId = 1;
+
+function readKey() { try { return localStorage.getItem(STORE_KEY) || ''; } catch { return ''; } }
+function writeKey(v) { try { v ? localStorage.setItem(STORE_KEY, v) : localStorage.removeItem(STORE_KEY); } catch {} }
+
+let apiKey = readKey();
+function showKeyState() {
+  if (apiKey) {
+    keyInput.value = apiKey;
+    keyStatus.textContent = 'Chave salva. Já pode enviar os áudios.';
+    keyStatus.className = 'key-status ok';
+  } else {
+    keyStatus.textContent = 'Nenhuma chave salva ainda. Veja abaixo como conseguir uma grátis.';
+    keyStatus.className = 'key-status';
+    $('key-help').open = true;
+  }
+}
+showKeyState();
+
+$('save-key').addEventListener('click', () => {
+  apiKey = keyInput.value.trim();
+  writeKey(apiKey);
+  showKeyState();
+  if (apiKey) processQueue();
+});
+keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('save-key').click(); });
+
+const drop = $('drop'), fileInput = $('file-input');
+fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+function fmtSize(b) { return b < 1024 * 1024 ? (b / 1024).toFixed(0) + ' KB' : (b / 1024 / 1024).toFixed(1) + ' MB'; }
+
+function addFiles(fileList) {
+  for (const file of fileList) {
+    const item = { id: nextId++, file, status: 'fila', text: '', error: '' };
+    if (file.size > MAX_BYTES) { item.status = 'erro'; item.error = 'Arquivo maior que 25 MB. Corte o áudio em partes menores e envie de novo.'; }
+    items.push(item);
+    renderItem(item);
+  }
+  updateToolbar();
+  processQueue();
+}
+
+function statusLabel(s) {
+  return { fila: 'Na fila', transcrevendo: 'Transcrevendo', pronto: 'Pronto', erro: 'Erro' }[s];
+}
+
+function renderItem(item) {
+  empty.hidden = true;
+  let el = document.getElementById('item-' + item.id);
+  if (!el) {
+    el = document.createElement('article');
+    el.className = 'item';
+    el.id = 'item-' + item.id;
+    list.appendChild(el);
+  }
+  el.innerHTML = '';
+  const head = document.createElement('div'); head.className = 'item-head';
+  const name = document.createElement('div'); name.className = 'item-name'; name.textContent = item.file.name;
+  const meta = document.createElement('span'); meta.className = 'item-meta'; meta.textContent = fmtSize(item.file.size);
+  const chip = document.createElement('span'); chip.className = 'chip ' + item.status;
+  if (item.status === 'transcrevendo') { const sp = document.createElement('span'); sp.className = 'spinner'; chip.appendChild(sp); }
+  chip.appendChild(document.createTextNode(statusLabel(item.status)));
+  head.append(name, meta, chip);
+  el.appendChild(head);
+
+  const body = document.createElement('div'); body.className = 'item-body';
+  if (item.status === 'pronto') {
+    const ta = document.createElement('textarea');
+    ta.id = 'text-' + item.id;
+    ta.value = item.text;
+    ta.setAttribute('aria-label', 'Transcrição de ' + item.file.name);
+    ta.addEventListener('input', () => { item.text = ta.value; });
+    const row = document.createElement('div'); row.className = 'row';
+    const copy = document.createElement('button'); copy.className = 'primary'; copy.textContent = 'Copiar texto';
+    copy.addEventListener('click', () => copyText(item.text, copy, ta));
+    const dl = document.createElement('button'); dl.textContent = 'Baixar .txt';
+    dl.addEventListener('click', () => download(baseName(item.file.name) + '.txt', item.text));
+    row.append(copy, dl);
+    body.append(ta, row);
+  } else if (item.status === 'erro') {
+    const p = document.createElement('p'); p.className = 'err'; p.textContent = item.error;
+    body.appendChild(p);
+    if (item.file.size <= MAX_BYTES) {
+      const retry = document.createElement('button'); retry.textContent = 'Tentar de novo';
+      retry.addEventListener('click', () => { item.status = 'fila'; item.error = ''; renderItem(item); processQueue(); });
+      body.appendChild(retry);
+    }
+  } else if (item.status === 'fila' && !apiKey) {
+    const p = document.createElement('p'); p.className = 'err'; p.style.color = 'var(--warn)';
+    p.textContent = 'Aguardando a chave de acesso. Salve a chave no campo acima e a transcrição começa sozinha.';
+    body.appendChild(p);
+  }
+  if (body.childNodes.length) el.appendChild(body);
+}
+
+function baseName(n) { return n.replace(/\.[^.]+$/, ''); }
+
+async function copyText(text, btn, ta) {
+  const orig = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'Copiado';
+  } catch {
+    if (ta) { ta.focus(); ta.select(); }
+    btn.textContent = 'Selecionado, use Ctrl+C';
+  }
+  setTimeout(() => { btn.textContent = orig; }, 1800);
+}
+
+function download(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function doneItems() { return items.filter(i => i.status === 'pronto'); }
+function joinedText() { return doneItems().map(i => `=== ${i.file.name} ===\n${i.text}`).join('\n\n'); }
+
+function updateToolbar() {
+  const done = doneItems().length > 0;
+  $('copy-all').disabled = !done;
+  $('download-all').disabled = !done;
+  $('clear').disabled = items.length === 0 || running;
+}
+$('copy-all').addEventListener('click', (e) => copyText(joinedText(), e.currentTarget));
+$('download-all').addEventListener('click', () => download('transcricoes.txt', joinedText()));
+$('clear').addEventListener('click', () => {
+  items.length = 0;
+  list.querySelectorAll('.item').forEach(n => n.remove());
+  empty.hidden = false;
+  updateToolbar();
+});
+
+function friendlyError(status, body) {
+  const msg = (body && body.error && body.error.message) || '';
+  if (status === 401) return 'A chave de acesso não foi aceita. Confira se copiou o código inteiro (começa com gsk_) e salve de novo.';
+  if (status === 413) return 'Arquivo grande demais para o plano gratuito. Corte o áudio em partes menores.';
+  if (status === 429) return 'Limite gratuito atingido por enquanto. Espere alguns minutos e clique em Tentar de novo.';
+  if (status === 400 && /format|file/i.test(msg)) return 'Formato de áudio não reconhecido. Tente converter para .mp3 ou .ogg.';
+  return 'Não foi possível transcrever' + (msg ? ': ' + msg : '. Verifique a internet e tente de novo.');
+}
+
+async function transcribe(item) {
+  const form = new FormData();
+  form.append('file', item.file, item.file.name);
+  form.append('model', 'whisper-large-v3');
+  form.append('language', 'pt');
+  form.append('temperature', '0');
+  form.append('response_format', 'json');
+  form.append('prompt', 'Transcrição em português do Brasil, com pontuação correta. Contexto jurídico: processo, audiência, cliente, advogada, petição.');
+  const res = await fetch(ENDPOINT, { method: 'POST', headers: { Authorization: 'Bearer ' + apiKey }, body: form });
+  let body = null;
+  try { body = await res.json(); } catch {}
+  if (!res.ok) throw Object.assign(new Error(friendlyError(res.status, body)), { status: res.status });
+  return (body && body.text || '').trim();
+}
+
+async function processQueue() {
+  if (running) return;
+  if (!apiKey) { items.filter(i => i.status === 'fila').forEach(renderItem); return; }
+  running = true; updateToolbar();
+  let item;
+  while ((item = items.find(i => i.status === 'fila'))) {
+    item.status = 'transcrevendo'; renderItem(item);
+    try {
+      item.text = await transcribe(item) || '(Nenhuma fala reconhecida neste áudio.)';
+      item.status = 'pronto';
+    } catch (e) {
+      item.status = 'erro';
+      item.error = e.status ? e.message : 'Sem conexão com o serviço de transcrição. Verifique a internet e tente de novo.';
+    }
+    renderItem(item);
+    updateToolbar();
+    if (item.status === 'erro' && item.error.startsWith('A chave')) break;
+  }
+  running = false; updateToolbar();
+}
+</script>
+</body>
+</html>
