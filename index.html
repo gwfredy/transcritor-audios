@@ -193,7 +193,9 @@ function showKeyState() {
 showKeyState();
 
 $('save-key').addEventListener('click', () => {
-  const cleaned = keyInput.value.replace(/^\s*bearer\s+/i, '').replace(/[^A-Za-z0-9_-]/g, '');
+  const raw = keyInput.value.replace(/[\s​-‍⁠﻿]/g, '');
+  const found = raw.match(/gsk_[A-Za-z0-9]+/);
+  const cleaned = found ? found[0] : raw.replace(/[^A-Za-z0-9_*-]/g, '');
   keyInput.value = cleaned;
   if (cleaned && (!cleaned.startsWith('gsk_') || cleaned.length < 40)) {
     keyStatus.textContent = cleaned.includes('*') || cleaned.length < 40
