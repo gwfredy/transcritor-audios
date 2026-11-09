@@ -193,9 +193,21 @@ function showKeyState() {
 showKeyState();
 
 $('save-key').addEventListener('click', () => {
-  apiKey = keyInput.value.trim();
+  const cleaned = keyInput.value.replace(/^\s*bearer\s+/i, '').replace(/[^A-Za-z0-9_-]/g, '');
+  keyInput.value = cleaned;
+  if (cleaned && (!cleaned.startsWith('gsk_') || cleaned.length < 40)) {
+    keyStatus.textContent = cleaned.includes('*') || cleaned.length < 40
+      ? 'Essa chave parece incompleta. A Groq só mostra a chave inteira uma vez, na hora em que ela é criada. Crie uma nova e copie pelo botão de copiar.'
+      : 'A chave da Groq começa com gsk_. Confira se copiou o código certo.';
+    keyStatus.className = 'key-status';
+    keyStatus.style.color = 'var(--err)';
+    return;
+  }
+  keyStatus.style.color = '';
+  apiKey = cleaned;
   writeKey(apiKey);
   showKeyState();
+  items.filter(i => i.keyError).forEach(i => { i.status = 'fila'; i.error = ''; i.keyError = false; renderItem(i); });
   if (apiKey) processQueue();
 });
 keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') $('save-key').click(); });
@@ -315,7 +327,7 @@ $('clear').addEventListener('click', () => {
 
 function friendlyError(status, body) {
   const msg = (body && body.error && body.error.message) || '';
-  if (status === 401) return 'A chave de acesso não foi aceita. Confira se copiou o código inteiro (começa com gsk_) e salve de novo.';
+  if (status === 401) return 'A Groq recusou a chave. Crie uma chave nova em console.groq.com/keys, copie pelo botão de copiar que aparece logo após criar, cole no campo acima e clique em Salvar chave. Os áudios serão enviados de novo automaticamente.';
   if (status === 413) return 'Arquivo grande demais para o plano gratuito. Corte o áudio em partes menores.';
   if (status === 429) return 'Limite gratuito atingido por enquanto. Espere alguns minutos e clique em Tentar de novo.';
   if (status === 400 && /format|file/i.test(msg)) return 'Formato de áudio não reconhecido. Tente converter para .mp3 ou .ogg.';
@@ -349,11 +361,19 @@ async function processQueue() {
       item.status = 'pronto';
     } catch (e) {
       item.status = 'erro';
+      item.keyError = e.status === 401;
       item.error = e.status ? e.message : 'Sem conexão com o serviço de transcrição. Verifique a internet e tente de novo.';
     }
     renderItem(item);
     updateToolbar();
-    if (item.status === 'erro' && item.error.startsWith('A chave')) break;
+    if (item.keyError) {
+      keyStatus.textContent = 'A Groq recusou esta chave. Cole uma chave nova e salve.';
+      keyStatus.className = 'key-status';
+      keyStatus.style.color = 'var(--err)';
+      $('key-help').open = true;
+      keyInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      break;
+    }
   }
   running = false; updateToolbar();
 }
